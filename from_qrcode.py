@@ -19,6 +19,7 @@ def parse_arguments():
     parser.add_argument(
         "-o",
         "--output",
+        dest="output_dir",
         default=".",
         help="path to extracted directory",
     )
@@ -26,6 +27,7 @@ def parse_arguments():
         "-v",
         "--verbose",
         action="store_true",
+        dest="verbose",
         default=False,
         help="verbose output.",
     )
@@ -57,7 +59,9 @@ def process_folder(input_dir: str, output_dir: str, verbose: bool) -> int:
                 try:
                     i = int(symbol.data)
                     data = i.to_bytes((i.bit_length() + 7) // 8)
-                except ValueError:
+                except ValueError as exc_value:
+                    if verbose:
+                        print(f"\ropening: {path} ... skipped. {exc_value}")
                     continue
 
                 if isinstance(data, bytes):
@@ -68,9 +72,8 @@ def process_folder(input_dir: str, output_dir: str, verbose: bool) -> int:
                 print(f"\ropening: {path} ... done.")
 
     # checking chunk dictionary
-    absent_index_set = (
-        set(chunk_dict.keys()).difference(range(1, len(chunk_dict) + 1))
-    )
+    absent_index_set = set(chunk_dict.keys())
+    absent_index_set.difference_update(range(1, len(chunk_dict) + 1))
     if absent_index_set:
         print(
             f"Need QR image: indexes={list(sorted(absent_index_set))}",
@@ -80,9 +83,7 @@ def process_folder(input_dir: str, output_dir: str, verbose: bool) -> int:
 
     # reading list
     with tempfile.TemporaryFile() as temp_file:
-        decompressor = lzma.LZMADecompressor(
-            format=lzma.FORMAT_XZ,
-        )
+        decompressor = lzma.LZMADecompressor(format=lzma.FORMAT_XZ)
         for index in range(1, len(chunk_dict) + 1):
             temp_file.write(decompressor.decompress(chunk_dict[index]))
 
@@ -124,15 +125,9 @@ def process_folder(input_dir: str, output_dir: str, verbose: bool) -> int:
 def main():
     args = parse_arguments()
 
-    try:
-        if sys.get_int_max_str_digits() < 7089:
-            sys.set_int_max_str_digits(7089)
-    except AttributeError:
-        pass
-
     result = 0
     for input_dir in args.path:
-        result = process_folder(input_dir, args.output, args.verbose)
+        result = process_folder(input_dir, args.output_dir, args.verbose)
         if result != 0:
             break
     exit(result)
